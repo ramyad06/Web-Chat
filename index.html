@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>WebChat</title>
+    <style>
+      body { margin: 0; padding-bottom: 3rem; font-family: Arial, sans-serif; }
+      #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      #input:focus { outline: none; }
+      #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages > li { padding: 0.5rem 1rem; }
+      #messages > li:nth-child(odd) { background: #efefef; }
+      #online-users { padding: 10px; font-weight: bold; }
+      #typing { font-style: italic; padding: 5px; }
+    </style>
+  </head>
+  <body>
+    <p id="online-users">Online Users: 0</p>
+    <ul id="messages"></ul>
+    <p id="typing"></p>
+    <form id="form" action="">
+      <input id="input" autocomplete="off" /><button>Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      let counter = 0;
+      let username = prompt("Enter your nickname:");
+      const socket = io({ auth: { serverOffset: 0 } });
+
+      socket.emit('set username', username);
+
+      const form = document.getElementById('form');
+      const input = document.getElementById('input');
+      const messages = document.getElementById('messages');
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (input.value) {
+          const clientOffset = `${socket.id}-${counter++}`;
+          const item = document.createElement('li');
+          item.textContent = `You: ${input.value}`;
+          messages.appendChild(item);
+          window.scrollTo(0, document.body.scrollHeight);
+          socket.emit('chat message', input.value, clientOffset);
+          input.value = '';
+        }
+      });
+
+      socket.on('chat message', (msg, serverOffset) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        messages.appendChild(item);
+        window.scrollTo(0, document.body.scrollHeight);
+        socket.auth.serverOffset = serverOffset;
+      });
+
+      socket.on('user connected', (msg) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        item.style.fontStyle = "italic";
+        messages.appendChild(item);
+      });
+
+      socket.on('user disconnected', (msg) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        item.style.fontStyle = "italic";
+        messages.appendChild(item);
+      });
+
+      socket.on('online users', (users) => {
+        document.getElementById('online-users').innerText = `Online Users: ${users.length}`;
+      });
+
+      input.addEventListener('input', () => {
+        socket.emit('typing');
+      });
+
+      socket.on('typing', (username) => {
+        document.getElementById('typing').innerText = `${username} is typing...`;
+        clearTimeout(window.typingTimer);
+        window.typingTimer = setTimeout(() => {
+          document.getElementById('typing').innerText = '';
+        }, 1000);
+      });
+
+      socket.on('private message', ({ sender, message }) => {
+        alert(`Private message from ${sender}: ${message}`);
+      });
+    </script>
+  </body>
+</html>
